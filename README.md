@@ -1,8 +1,8 @@
 #WMBDeploy
 
-A simple Ant script I wrote back in 2009 to automate the deployment of BAR files for WebSphere Message Broker 6. At the time we had 473 MsgFlows, split based on alphabetical order across 12 Execution Groups. And could potentially take up to 2 hours to deploy a full set manually.
+A simple Ant script I wrote back in 2009 to automate the deployment of BAR files for WebSphere Message Broker 6. At the time we had 473 MsgFlows, split based on alphabetical order across 12 Execution Groups. It could potentially take up to 2 hours for the support team to deploy the full set manually.
 
-I did some research and found [WebSphere Message Broker deployment scripting using Ant](http://www.ibm.com/developerworks/websphere/library/techarticles/0706_spriet/0706_spriet.html) to be very useful. An alternative solution would be to deploy via the [Configuration Manager Proxy API](http://www.ibm.com/developerworks/websphere/library/techarticles/0611_lucas/0611_lucas.html) But since I was short on time and coming from a Java Developer background, I chose to use the Ant approach.
+In my quest for automation, I found [WebSphere Message Broker deployment scripting using Ant](http://www.ibm.com/developerworks/websphere/library/techarticles/0706_spriet/0706_spriet.html) to be very useful, there was also an alternative solution to deploy via the [Configuration Manager Proxy API](http://www.ibm.com/developerworks/websphere/library/techarticles/0611_lucas/0611_lucas.html). But since I was short on time and coming from a Java background, I chose to use the Ant approach.
 
 ##Overview
 ![](https://raw.github.com/yunspace/WMBDeploy/master/images/WMBDeploy.png)
