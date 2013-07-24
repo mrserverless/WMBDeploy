@@ -1,0 +1,195 @@
+<?xml version="1.0"?>
+
+<!--
+Uses ANT to create and deploy WBI bar files. 
+
+See for more details:
+http://www.ibm.com/developerworks/websphere/library/techarticles/0706_spriet/0706_spriet.html?ca=drs-
+
+-->
+<project name="wmbdeploy" default="dist-all" >
+	<property environment="env"/>
+	<property file="createbar.properties"/>
+
+	<taskdef resource="net/sf/antcontrib/antcontrib.properties"/>
+	<taskdef name="msgflowfilter" classname="com.bglobal.wmbdeploy.Task.FilterFilename" />
+	<!-- use Perl consistent regexp implementation -->
+	<property name="ant.regexp.regexpimpl" value="org.apache.tools.ant.util.regexp.JakartaOroRegexp" />		
+
+  	<!-- ==========================================================
+  	   Targets
+	========================================================== -->	
+	<target name="prepare" depends="getVersion, getEnvironment" >
+		<echo message="cvs.module: ${cvs.module}" />
+        <mkdir dir="${build.dir}"/>
+        <mkdir dir="${dist.dir}" />
+	</target>
+
+    <target name="build-workspace" depends="prepare" description="udpates CVS and gets the right files">   		
+		<antcall target="cvs" >
+			<param name="cvs.command" value="checkout" />
+			<param name="cvs.revision" value="${version.tag}" />
+			<param name="cvs.project" value="${cvs.module}"/>			
+		</antcall>
+
+		<antcall target="cvs" >
+			<param name="cvs.command" value="checkout" />
+			<param name="cvs.revision" value="HEAD" />
+			<param name="cvs.project" value="${cvs.module}/SubFlows_${project.environment}"/>
+		</antcall>
+	</target>
+	
+	<target name="dist-all" depends="clean, build-workspace, dist" />
+
+	<target name="dist" depends="prepare" >
+		<delete dir="${workspace.dir}/.metadata" />
+		<property name="workspace.dir" value="${build.dir}/${cvs.project}/${project.environment}"/>
+		<foreach target="create-multiple-bar" inheritall="true" param="wmb.group" trim="true" list="OutRouters, SubRouters" />
+		<foreach target="create-single-bar" inheritall="true" param="wmb.group" trim="true" list="GlobalShare, GSOutRouters" />
+	</target>
+
+  	<!-- ==========================================================
+  	      Creating Bar Files
+	========================================================== -->
+	<target name="getProjectFile">				
+		<property name="wmb.project.name" value="${wmb.group}_${project.environment}" />	
+		<available property="project.exists" file="${workspace.dir}/${wmb.project.name}" />
+		<if><equals arg1="${project.exists}" arg2="true" /><then>
+			<echo message="updating .project file: ${wmb.project.name}/.project file" />
+			<antcall target="cvs" >
+				<param name="cvs.command" value="update" />
+				<param name="cvs.revision" value="HEAD" />
+				<param name="cvs.project" value="${cvs.module}/${wmb.project.name}/.project"/>
+			</antcall>
+		</then></if>		
+	</target>
+	
+	<target name="create-multiple-bar" depends="getProjectFile" >		
+		<!-- BAR 1 -->
+		<antcall target="select-msgflows">
+			<param name="wmb.execgroup" value="${wmb.group}-AB" />
+			<param name="wmb.match" value="^[A-B].*.msgflow" />
+		</antcall>
+		<antcall target="select-msgflows">
+			<param name="wmb.execgroup" value="${wmb.group}-CG" />
+			<param name="wmb.match" value="^[C-G].*.msgflow" />
+		</antcall>		
+		
+		<!-- BAR 2 -->
+		<antcall target="select-msgflows">
+			<param name="wmb.execgroup" value="${wmb.group}_2-IO" />
+			<param name="wmb.match" value="^[I-O].*.msgflow" />
+		</antcall>
+		<antcall target="select-msgflows">			
+			<param name="wmb.execgroup" value="${wmb.group}_2-PZ" />
+			<param name="wmb.match" value="^[P-Z].*.msgflow" />
+		</antcall>
+	</target>
+	
+	<target name="create-single-bar" depends="getProjectFile">
+		<antcall target="select-msgflows">		
+			<param name="wmb.execgroup" value="${wmb.group}" />
+			<param name="wmb.match" value=".+msgflow" />
+		</antcall>
+	</target>
+	
+	<target name="select-msgflows">	
+		<fileset dir="${workspace.dir}" id="msgflow.fileset" includes="${wmb.project.name}/*.msgflow" />
+		<msgflowfilter name="msgflow.filtered" match="${wmb.match}" refid="msgflow.fileset" />
+		<if><not><equals arg1="${msgflow.filtered}" arg2="" /></not>
+			<then><antcall target="bar" /></then>
+		</if>		
+	</target>
+		
+	<target name="bar" >		
+		<property name="bar.name" value="${wmb.execgroup}-${deployment.environment}_${version.tag}.bar" />
+		<property name="project.dependencies" value="SubFlows_${project.environment}" />
+
+        <echo level="info" message="Executing: ${toolkit.home}/mqsicreatebar.exe -cleanBuild -data ${workspace.dir} -p ${wmb.project.name} ${project.dependencies} -version ${version.tag} -b ${dist.dir}\${bar.name} -o ${msgflow.filtered}"/>                  
+		<exec output="${bar.log}" error="${bar.error}" append="true" executable="${toolkit.home}/mqsicreatebar.exe" resultproperty="bar.result">
+			<arg value="-cleanBuild" />
+			<arg value="-data" /><arg value="${workspace.dir}" />					
+			<arg value="-b" /><arg value="${dist.dir}/${bar.name}" />			
+			<arg value="-p" /><arg line="${wmb.project.name} ${project.dependencies}" />
+			<arg value="-o" /><arg line="${msgflow.filtered}" />
+	    </exec>
+	    
+	    <fail message="Failed building - ${bar.name} please check ${bar.log} and ${bar.error}">
+			<condition><not><equals arg1="${bar.result}" arg2="0" /></not></condition>
+		</fail>
+	</target>
+		
+  	<!-- ==========================================================
+  	                           Preparation Targets
+  	        ========================================================== -->	
+	<target name="getVersion" unless="version.tag" description="Prompt for tag">
+	    <input message="Please enter msgflow Tag: " addproperty="version.tag" defaultvalue="HEAD" />
+	</target>
+
+	<target name="getSubflowVersion" unless="subflow.tag" description="Prompt for tag">
+	    <input message="Please enter subflow Tag: " addproperty="subflow.tag" defaultvalue="HEAD" />
+	</target>
+	
+	<target name="getEnvironment" unless="deployment.environment" description="Prompt for environment">
+	    <input message="Please enter environment to deploy: test|qa|stage|prod):" addproperty="deployment.environment" defaultvalue="test" />	    
+	    <condition property="project.environment" value="test" else="${deployment.environment}" >
+			<equals arg1="${deployment.environment}" arg2="stage" />	    			
+	    </condition>
+   		<property name="cvs.module" value="${cvs.project}/${project.environment}" />
+	</target>
+
+  	<!-- ==========================================================
+			CVS Targets
+			========================================================== --> 	   
+     <target name="cvs" >
+        <echo message="cvs.revision=${cvs.revision} build.dir=${build.dir} cvs.module=${cvs.project}"/>
+        
+        <cvs cvsRoot="${cvs.root}"
+			output="${cvs.log}"
+			error="${cvs.error}"
+             package="${cvs.project}"
+             tag="${cvs.revision}"
+             command="${cvs.command}"
+             dest="${build.dir}"
+             failonerror="true"/>             
+    </target>
+    
+  	   <!-- =====================================================
+	         SCP the distribution to config manager server
+	       Requires valid username and password
+         ===================================================== -->
+	<target name="scp" depends="getEnvironment, getRemoteUser, getRemotePassword">
+		<property name="remote.server" value="mq-${deployment.environment}-us" />
+		
+		<scp host="${remote.server}"  todir="${remote.user}@${remote.server}:${remote.dir}" trust="Yes" verbose="True" password="${remote.password}">			
+			<fileset dir="${dist.dir}/">
+				<include name="**/*.bar" />
+			</fileset>
+		</scp>	
+	</target>
+
+  	   <!-- =====================================================
+		Call the deploy.ksh script
+		===================================================== -->
+	<target name="deploy" depends="scp">
+		<!-- ssh execute the deploy script -->
+		<sshexec host="${remote.server}" trust="Yes" username="${remote.user}" password="${remote.password}" command="${remote.command}"/>
+	</target>
+
+	<target name="getRemoteUser" unless="remote.user" description="Prompt for Username">
+		<input message="Please enter username: " addproperty="remote.user" />
+	</target>
+
+	<target name="getRemotePassword" unless="remote.password" description="Prompt for Password">
+		<input message="Please enter password: " addproperty="remote.password" />
+	</target>
+  	  
+  	   <!-- =====================================================
+	        Clean
+         ===================================================== -->
+	<target name="clean">
+	      <delete dir="${build.dir}" />
+	</target>
+</project>
+
+

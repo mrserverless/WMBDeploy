@@ -1,0 +1,27 @@
+
+Usage
+-----
+* Have Java1.5+ installed with JAVA_HOME environment variable set correctly.
+* Have Ant 1.7 installed with ANT_HOME environment variable set correctly.
+* Copy every jar file under ant-lib into your ANT_HOME/lib directory
+* Then run create.bat and follow the prompts
+
+V0-0-5
+------
+* Checked in createbar related files
+
+V0-0-4
+------
+* Splitted SubRouters and OutRouters into 4 BARS
+* Added Usage notes
+
+V0-0-3
+-------
+* Added install.bat and install.xml
+* Using newly checked workspace out CVS instead of user's WB Toolkit workspace
+* Improved CVS checkout functionality
+
+V0-0-2
+-------
+* WMBDeployer now includes DROP msgflows.
+* Resolved problem with unclean projects in workspace by deleting the msgflows from project first then update the project.
